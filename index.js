@@ -7,13 +7,13 @@ const { URLSearchParams } = require('url');
 function readAllJsFilesInDirectory (dirname, onFileContent, onError) {
     fs.readdir(dirname, function (err, filenames) {
         if (err) {
-            onError(err);
+            onError(err, dirname);
             return;
         }
         filenames.forEach(function(filename) {
             fs.readFile(dirname + filename, 'utf-8', function(err, content) {
                 if (err) {
-                    onError(err);
+                    onError(err, filename);
                     return;
                 }
                 onFileContent(filename, content);
@@ -70,10 +70,10 @@ function readAllDirectories (directories) {
                             if (err) throw err;
                             console.log('SUCCESS: ' + filename + ' is obfuscated and minified.');
                         });
-                    }).catch(err => console.log(err));
+                    }).catch(err => console.log('ERROR: Fail to minify ' + filename));
                 counter++;
-            }, function (err) {
-                console.error('ERROR: Fail to process');
+            }, function (err, filename) {
+                console.error('ERROR: Fail to process ' + filename);
                 throw err;
             })
         });
