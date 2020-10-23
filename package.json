@@ -1,0 +1,23 @@
+{
+  "name": "js-processor",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "js-processor": "node index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/johnnyn2/js-processor.git"
+  },
+  "author": "Ho Wai Kin Johnny",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/johnnyn2/js-processor/issues"
+  },
+  "homepage": "https://github.com/johnnyn2/js-processor#readme",
+  "devDependencies": {
+    "javascript-obfuscator": "^2.6.1"
+  }
+}
