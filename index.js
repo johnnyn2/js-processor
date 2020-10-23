@@ -1,6 +1,8 @@
 var fs = require('fs');
 var paths = require('./paths');
 var JavaScriptObfuscator = require('javascript-obfuscator');
+const fetch = require('node-fetch');
+const { URLSearchParams } = require('url');
 
 function readAllJsFilesInDirectory (dirname, onFileContent, onError) {
     fs.readdir(dirname, function (err, filenames) {
@@ -50,24 +52,31 @@ function removeDist() {
 function readAllDirectories (directories) {
     const removeDistPromise = removeDist();
     removeDistPromise.then(() => {
-        if (!fs.existsSync(dist)) {
-            fs.mkdirSync(dist);
-            var counter = 1;
-            directories.forEach(function(dir) {
-                readAllJsFilesInDirectory(dir, function(filename, content) {
-                    console.log(counter + '. INFO: Processing ' + filename);
-                    var obfuscatedJs = JavaScriptObfuscator.obfuscate(content, obfucateOptions).getObfuscatedCode();
-                    fs.writeFile(dist + '/' + filename, obfuscatedJs, function(err) {
-                        if (err) throw err;
-                        console.log('SUCCESS: ' + filename + ' is obfuscated.');
-                    });
-                    counter++;
-                }, function(err) {
-                    console.error('ERROR: Fail to obfuscate');
-                    throw err;
-                })
-            });
-        }
+        fs.mkdirSync(dist);
+        var counter = 1;
+        directories.forEach(function (dir) {
+            readAllJsFilesInDirectory(dir, async function (filename, content) {
+                console.log(counter + '. INFO: Processing ' + filename);
+
+                var obfuscatedJs = JavaScriptObfuscator.obfuscate(content, obfucateOptions).getObfuscatedCode();
+                const params = new URLSearchParams();
+                params.append('js_code', obfuscatedJs);
+                params.append('compilation_level', 'WHITESPACE_ONLY');
+                params.append('output_format', 'text');
+                params.append('output_info', 'compiled_code');
+                fetch('https://closure-compiler.appspot.com/compile', { method: 'POST', body: params })
+                    .then(res => { return res.text(); }).then(compiledCode => {
+                        fs.writeFile(dist + '/' + filename, compiledCode, function (err) {
+                            if (err) throw err;
+                            console.log('SUCCESS: ' + filename + ' is obfuscated and minified.');
+                        });
+                    }).catch(err => console.log(err));
+                counter++;
+            }, function (err) {
+                console.error('ERROR: Fail to process');
+                throw err;
+            })
+        });
     }).catch(err => console.log(err));
 }
 

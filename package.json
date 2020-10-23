@@ -19,5 +19,8 @@
   "homepage": "https://github.com/johnnyn2/js-processor#readme",
   "devDependencies": {
     "javascript-obfuscator": "^2.6.1"
+  },
+  "dependencies": {
+    "node-fetch": "^2.6.1"
   }
 }
