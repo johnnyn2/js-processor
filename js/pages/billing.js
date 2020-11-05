@@ -30,9 +30,21 @@ function sum(a, b) {
 	}
 }
 
+function checkIfAmountIsPredefined(amount) {
+	const activeLabel = $('#fund-suggestions label.active');
+	switch(amount) {
+		case 100:
+		case 500:
+		case 1000:
+		case 5000: activeLabel.removeClass('active'); $('input[name="fund-toggle"][value="' + amount + '.00"]').parent().addClass('active'); break;
+		default: activeLabel.removeClass('active');
+	}
+}
+
 function calculateNewBalance() {
 	originalCredit = Number($('.credit-section span').text().split(',').join(''));
 	const amount = Number($('input[name="credit"]').val());
+	checkIfAmountIsPredefined(amount);
 	const newBalance = amount >= 100 ? sum(originalCredit, amount) : originalCredit;
 	return numberWithCommas(newBalance);
 }
@@ -45,10 +57,6 @@ function row(history) {
 				'<svg invoice-id="' + history.paymentNumber + '" aria-hidden="true" focusable="false" data-prefix="fas" data-icon="arrow-circle-down" class="svg-inline--fa fa-arrow-circle-down fa-w-16" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path id="download" fill="currentColor" d="M504 256c0 137-111 248-248 248S8 393 8 256 119 8 256 8s248 111 248 248zm-143.6-28.9L288 302.6V120c0-13.3-10.7-24-24-24h-16c-13.3 0-24 10.7-24 24v182.6l-72.4-75.5c-9.3-9.7-24.8-9.9-34.3-.4l-10.9 11c-9.4 9.4-9.4 24.6 0 33.9L239 404.3c9.4 9.4 24.6 9.4 33.9 0l132.7-132.7c9.4-9.4 9.4-24.6 0-33.9l-10.9-11c-9.5-9.5-25-9.3-34.3.4z"></path></svg>'+
 			'</td>' +
 		'</tr>';
-}
-
-function downloadInvoice() {
-	
 }
 
 function resetCreditBorder() {
@@ -65,7 +73,37 @@ function isValidAmount(credit) {
 	return true;
 }
 
+function getDate(date) {
+	return date + '01000000';
+}
+
+function invoiceRow(i) {
+	const dateStr = getDate(i.invoiceName);
+	const year = dateStr.substring(0,4);
+	const month = dateStr.substring(4,6);
+	const day = dateStr.substring(6,8);
+	const invoiceDate = new Date(year, month-1, day);
+	const invoiceDateStr = invoiceDate.toLocaleDateString('en-GB', {month: 'long', year: 'numeric'});
+	return '<tr>' +
+		'<td sorttable_customkey="'+ getDate(i.invoiceName) +'">'+ invoiceDateStr +'</td>' +
+		'<td>' +
+			'<a href="/ajax/ad/downloadInvoice?id=' + i.invoiceName + '">' +
+				'<svg invoice-id="123" aria-hidden="true" focusable="false" data-prefix="fas" data-icon="arrow-circle-down" class="svg-inline--fa fa-arrow-circle-down fa-w-16" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path id="download" fill="currentColor" d="M504 256c0 137-111 248-248 248S8 393 8 256 119 8 256 8s248 111 248 248zm-143.6-28.9L288 302.6V120c0-13.3-10.7-24-24-24h-16c-13.3 0-24 10.7-24 24v182.6l-72.4-75.5c-9.3-9.7-24.8-9.9-34.3-.4l-10.9 11c-9.4 9.4-9.4 24.6 0 33.9L239 404.3c9.4 9.4 24.6 9.4 33.9 0l132.7-132.7c9.4-9.4 9.4-24.6 0-33.9l-10.9-11c-9.5-9.5-25-9.3-34.3.4z"></path></svg>' +
+			'</a>'+
+		'</td>'+
+	'</tr>';
+}
+
 $(document).ready(function() {
+	$.ajax({
+		url: '/ajax/ad/invoiceHistories',
+		type: 'POST',
+		success: function(invoices) {
+			const invoiceHistories = invoices.map(function(invoice) { return invoiceRow(invoice); });
+			$('table tbody').append(invoiceHistories);
+		}
+	})
+	
 	$('#fund-label').on('click', function() {
 		resetCreditBorder();
 		$(this).hide();
@@ -151,16 +189,29 @@ $(document).ready(function() {
 		 const credit = Number($('input[name="credit"]').val());
 		 if (isValidAmount(credit)) {
 			 console.log('credit: ', credit);
+
+			 $.ajax({
+				 url: '/ajax/ad/updateUserCredit?amount=' + credit,
+				 type: 'POST',
+				 beforeSend: function() {
+					 $('#next-btn #status').html('Loading&nbsp;');
+					 $('#spinner').show();
+					 $('#next-btn').attr('disabled', true);
+				 },
+				 success: function(data) {
+					 if (data === "success") {
+						 window.location.replace("/user/billing?status=addedFundSuccess"); 
+					 } else {
+						 window.location.replace("/user/billing?status=addedFundFail"); 
+					 }
+				 }
+			 })
 		 }
 	 })
 	 
 	 if (sessionStorage.getItem("showAddFund")) {
 		 $('.add-fund a').click();
 	 }
-	 
-	 $('svg[data-icon="arrow-circle-down"]').on('click', function() {
-		 downloadInvoice();
-	 })
 })
 $(window).bind('beforeunload', function() { 
 	sessionStorage.removeItem('showAddFund');

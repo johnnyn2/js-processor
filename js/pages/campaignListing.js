@@ -1,9 +1,14 @@
 var campaignList = [];
+var filteredCampaignList = [];
 var earliestStartDate = null;
 var latestStartDate = null;
 const searchFilter = $('#input-search');
 const statusFilter = $('#select-status');
 const dateRangeFilter = $('#datepicker');
+const pageSize = 10;
+var currentPage = 0;
+var sortState = {};
+const cpModel = ['clicks', 'cpm', 'ctr', 'endDate', 'impression', 'name', 'spent', 'startDate', 'status'];
 
 function numberWithCommas(x) {
     return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
@@ -50,6 +55,55 @@ function getCampaignActions(id, status, classes) {
 	}
 }
 
+function initSortState(excludedKey = null) {
+	cpModel.forEach(function(key) {
+		if (excludedKey !== key) {
+			sortState[key] = null;
+		}
+	})
+}
+
+function setSortState(key) {
+	initSortState(key);
+	if (sortState[key] === 'desc') {
+		sortState[key] = 'asc';
+	} else {
+		sortState[key] = 'desc';
+	}
+}
+
+function setSortIndicator(key) {
+	const sortedColumn = $('th[key="'+key+'"]');
+	if (sortState[key] === 'asc') {
+		sortedColumn.removeClass();
+		sortedColumn.addClass('sorttable_sorted');
+	} else if (sortState[key] === 'desc') {
+		sortedColumn.removeClass();
+		sortedColumn.addClass('sorttable_sorted_reverse');
+	} else {
+		sortedColumn.removeClass();
+	}
+}
+
+function sortByColumn(key, cp) {
+	const state = sortState[key];
+	return cp.sort(function(a, b) {
+		if (state === 'asc') {
+			if (a[key] > b[key]) {
+				return 1;
+			} else {
+				return -1
+			}
+		} else {
+			if (a[key] > b[key]) {
+				return -1;
+			} else {
+				return 1;
+			}
+		}
+	})
+}
+
 function row(cp, customSortKeys) {
 	const startDate = new Date(cp.startDate);
 	const endDate = new Date(cp.endDate);
@@ -89,7 +143,7 @@ function calculateCustomSortKey(values, targetValue) {
 }
 
 function setTableContent(campaignList) {
-	$('.sortable thead').empty().append('<tr><th>Name</th><th>Start Date</th><th>End Date</th><th>Impression</th><th>Clicks</th><th>CTR</th><th>CPM</th><th>Spent</th><th>Status</th><th class="sorttable_nosort"></th></tr>');
+	$('.sortable thead').empty().append('<tr><th key="name">Name</th><th key="startDate">Start Date</th><th key="endDate">End Date</th><th key="impression">Impression</th><th key="clicks">Clicks</th><th key="ctr">CTR</th><th key="cpm">CPM</th><th key="spent">Spent</th><th key="status">Status</th><th class="sorttable_nosort"></th></tr>');
 	$('.sortable tbody').empty();
 	const sortKeys  = ['impression', 'clicks', 'ctr', 'cpm', 'spent'];
 	const body = campaignList.map(function(cp) {
@@ -192,7 +246,91 @@ function setTableContent(campaignList) {
 	}, function() {
 		$(this).hide();
 	})
-	sorttable.makeSortable(document.getElementsByClassName('sortable')[0]);
+
+	// setup sorting action
+	$('th').on('click', function() {
+		const key = $(this).attr('key');
+		setSortState(key);
+		const sortedCp = sortByColumn(key, filteredCampaignList);
+		setPaginatedData(currentPage, sortedCp);
+		setSortIndicator(key);
+	})
+	cpModel.forEach(function(key) {
+		setSortIndicator(key);
+	})
+}
+
+function setPage(tp, numPages) {
+	if (tp === 'prev') {
+		$('li[target-page="next"]').removeClass('disabled');
+		if (currentPage === 1) {
+			$('li[target-page="prev"]').addClass('disabled');
+		}
+		if (currentPage !== 0) {
+			currentPage = currentPage - 1;
+			$('li.page-item.active').removeClass('active').prev().addClass('active');
+		}
+		
+	} else if (tp === 'next') {
+		$('li[target-page="prev"]').removeClass('disabled');
+		if (currentPage + 2 === numPages) {
+			$('li[target-page="next"]').addClass('disabled');
+		}
+		if (currentPage !== numPages - 1 ) {
+			currentPage = currentPage + 1;
+			$('li.page-item.active').removeClass('active').next().addClass('active');
+		}
+	} else {
+		currentPage = Number(tp);
+		$('li.page-item.active').removeClass('active');
+		$('li[target-page="'+ tp + '"]').addClass('active');
+		$('li[target-page="next"]').removeClass('disabled');
+		$('li[target-page="prev"]').removeClass('disabled');
+		if (currentPage === 0) {
+			$('li[target-page="prev"]').addClass('disabled');
+			
+		} else if (currentPage === numPages - 1) {
+			
+			$('li[target-page="next"]').addClass('disabled');
+		}
+	}
+}
+
+function removePagination() {
+	$('.pagination').empty();
+}
+
+function createPagination(cp) {
+	removePagination();
+	let pages = '';
+	const numPages = Math.ceil(cp.length / pageSize);
+	pages += '<li class="page-item disabled" target-page="prev"><a class="page-link" href="#">Previous</a></li>';
+	for (let i=0;i<numPages;i++) {
+		if (i === 0) {
+			pages += '<li class="page-item active" target-page="'+ i + '"><a class="page-link" href="#">'+ (i+1) +'</a></li>';
+		} else {
+			pages += '<li class="page-item" target-page="'+ i + '"><a class="page-link" href="#">'+ (i+1) +'</a></li>';
+		}
+	}
+	pages += '<li class="page-item" target-page="next"><a class="page-link" href="#">Next</a></li>';
+	$('.pagination').append(pages);
+	
+	$('.page-item').on('click', function() {
+		setPage($(this).attr('target-page'), numPages);
+		setPaginatedData(currentPage, filteredCampaignList);
+	})
+}
+
+function resetPagination() {
+	currentPage = 0;
+}
+
+function setPaginatedData(targetPage, cp) {
+	const start = targetPage * pageSize;
+	const end = start + pageSize;
+	console.log('start: ', start);
+	console.log('end: ', end);
+	setTableContent(cp.slice(start, end));
 }
 
 function filterCampaigns() {
@@ -202,7 +340,17 @@ function filterCampaigns() {
 	const filteredData = campaignList.filter(function(cp) { return name === "" ? true : cp.name.includes(name);})
 									 .filter(function(cp) { return status === "ALL" ? true : cp.status.includes(status);})
 									 .filter(function(cp) {return cp.startDate >= new Date(daterange.startDate._d).getTime() && cp.startDate <= new Date(daterange.endDate._d).getTime();});
-	setTableContent(filteredData);
+	filteredCampaignList = filteredData;
+	initSortState();
+	if (filteredData.length > pageSize) {
+		resetPagination();
+		setPaginatedData(currentPage, filteredCampaignList);
+		createPagination(filteredCampaignList);
+	} else {
+		resetPagination();
+		removePagination();
+		setTableContent(filteredData);
+	}
 }
 
 function cb(start, end) {
@@ -272,8 +420,14 @@ function fetchCampaigns() {
 			campaignList = data.campaigns;
 			filteredCampaignList = data.campaigns;
 			setEsLs(campaignList);
-			setTableContent(campaignList);
+			if (campaignList.length > pageSize) {
+				createPagination(campaignList);
+				setPaginatedData(currentPage, filteredCampaignList);
+			} else {
+				setTableContent(campaignList);
+			}
 			setLastUpdatedTime(data.lastUpdatedTime.lastExecute);
+			initSortState();
 		},
 		error: function(err) {
 		},
@@ -281,12 +435,6 @@ function fetchCampaigns() {
 			
 		}
 	})
-}
-
-function search(text) { 
-	const filteredData = filteredCampaignList.filter(function(cp) {return cp.name.includes(text);});
-	filteredCampaignList = filteredData;
-	setTableContent(filteredData);
 }
 
 function refresh() {
